@@ -24,7 +24,17 @@ export default function SignIn() {
   const handleSignIn = async () => {
     setIsLoading(true)
     try {
-      await signIn("google", { callbackUrl: "/" })
+      const result = await signIn("google", {
+        callbackUrl: "/",
+        redirect: false,
+      })
+
+      if (result?.error) {
+        console.error("Sign in error:", result.error)
+        // Handle error appropriately
+      } else if (result?.url) {
+        router.push(result.url)
+      }
     } catch (error) {
       console.error("Sign in error:", error)
     } finally {

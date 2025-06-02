@@ -7,16 +7,26 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!session) {
+      return NextResponse.json({ error: "No session found" }, { status: 401 })
+    }
+
+    if (!session.accessToken) {
+      return NextResponse.json({ error: "No access token available" }, { status: 401 })
     }
 
     const pluginManager = new PluginManager()
-    const contextData = await pluginManager.fetchAllData(session.accessToken as string)
+    const contextData = await pluginManager.fetchAllData(session.accessToken)
 
     return NextResponse.json(contextData)
   } catch (error) {
     console.error("Error fetching context:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details: process.env.NODE_ENV === "development" ? error.message : undefined,
+      },
+      { status: 500 },
+    )
   }
 }

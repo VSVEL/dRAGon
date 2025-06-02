@@ -7,18 +7,35 @@ import { PluginManager } from "@/lib/plugins/plugin-manager"
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if required environment variables are present
+    if (!process.env.GROQ_API_KEY) {
+      return new Response(JSON.stringify({ error: "GROQ_API_KEY not configured" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
     const session = await getServerSession(authOptions)
 
-    if (!session?.accessToken) {
-      return new Response("Unauthorized", { status: 401 })
+    if (!session) {
+      return new Response(JSON.stringify({ error: "No session found" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+
+    if (!session.accessToken) {
+      return new Response(JSON.stringify({ error: "No access token available" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      })
     }
 
     const { messages } = await request.json()
-    const lastMessage = messages[messages.length - 1]
 
     // Fetch context data from all enabled plugins
     const pluginManager = new PluginManager()
-    const contextData = await pluginManager.fetchAllData(session.accessToken as string)
+    const contextData = await pluginManager.fetchAllData(session.accessToken)
     const formattedContext = pluginManager.formatDataForAI(contextData)
 
     // Create enhanced system prompt with context
@@ -49,6 +66,15 @@ Current date/time: ${new Date().toISOString()}`
     return result.toDataStreamResponse()
   } catch (error) {
     console.error("Error in chat API:", error)
-    return new Response("Internal server error", { status: 500 })
+    return new Response(
+      JSON.stringify({
+        error: "Internal server error",
+        details: process.env.NODE_ENV === "development" ? error.message : undefined,
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    )
   }
 }

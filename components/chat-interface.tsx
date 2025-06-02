@@ -33,9 +33,13 @@ export default function ChatInterface() {
         if (response.ok) {
           const data = await response.json()
           setContextData(data)
+        } else {
+          console.warn("Failed to fetch context data:", response.status)
+          // Don't show error to user, just continue without context
         }
       } catch (error) {
         console.error("Error fetching context:", error)
+        // Continue without context data
       }
     }
 
@@ -62,7 +66,7 @@ export default function ChatInterface() {
         <h2 className="text-lg font-semibold mb-4">Context</h2>
 
         {/* Calendar Events */}
-        {contextData.calendar && contextData.calendar.length > 0 && (
+        {contextData.calendar && contextData.calendar.length > 0 ? (
           <Card className="mb-4">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -88,10 +92,22 @@ export default function ChatInterface() {
               ))}
             </CardContent>
           </Card>
+        ) : (
+          <Card className="mb-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Calendar
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-gray-500">No upcoming events</p>
+            </CardContent>
+          </Card>
         )}
 
         {/* Recent Emails */}
-        {contextData.gmail && contextData.gmail.length > 0 && (
+        {contextData.gmail && contextData.gmail.length > 0 ? (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -108,6 +124,18 @@ export default function ChatInterface() {
                   {email.unread && <div className="text-blue-600 text-xs font-medium">Unread</div>}
                 </div>
               ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Gmail
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-gray-500">No recent emails</p>
             </CardContent>
           </Card>
         )}
