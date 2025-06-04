@@ -1,8 +1,12 @@
+"use client"
+
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Mail, MessageSquare, Github, FileText, CheckSquare, Users, Zap } from "lucide-react"
+import { AccountSelectionModal } from "./account-selection-modal"
 import type { Integration } from "@/lib/types"
 
 const availableIntegrations: Integration[] = [
@@ -25,6 +29,15 @@ const availableIntegrations: Integration[] = [
     description: "Read and analyze your email messages",
   },
   {
+    id: "github",
+    name: "GitHub",
+    icon: "Github",
+    enabled: false,
+    connected: false,
+    scopes: ["repo", "notifications", "user:email"],
+    description: "Monitor your repositories, issues, and pull requests",
+  },
+  {
     id: "slack",
     name: "Slack",
     icon: "MessageSquare",
@@ -32,15 +45,6 @@ const availableIntegrations: Integration[] = [
     connected: false,
     scopes: ["channels:read", "chat:write"],
     description: "Access your Slack messages and channels",
-  },
-  {
-    id: "github",
-    name: "GitHub",
-    icon: "Github",
-    enabled: false,
-    connected: false,
-    scopes: ["repo", "notifications"],
-    description: "Monitor your repositories and pull requests",
   },
   {
     id: "notion",
@@ -83,6 +87,39 @@ const iconMap = {
 }
 
 export function IntegrationsPanel() {
+  const [integrations, setIntegrations] = useState(availableIntegrations)
+  const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null)
+  const [showAccountSelection, setShowAccountSelection] = useState(false)
+
+  const handleConnect = (integration: Integration) => {
+    setSelectedIntegration(integration)
+    setShowAccountSelection(true)
+  }
+
+  const handleAccountSelected = (accountId: string, isNewAccount: boolean) => {
+    if (selectedIntegration) {
+      // Update the integration status
+      setIntegrations((prev) =>
+        prev.map((int) => (int.id === selectedIntegration.id ? { ...int, connected: true, enabled: true } : int)),
+      )
+
+      // Here you would save the account selection to your backend
+      console.log(`Connected ${selectedIntegration.name} with account: ${accountId}, isNew: ${isNewAccount}`)
+    }
+    setShowAccountSelection(false)
+    setSelectedIntegration(null)
+  }
+
+  const handleToggle = (integrationId: string, enabled: boolean) => {
+    setIntegrations((prev) => prev.map((int) => (int.id === integrationId ? { ...int, enabled } : int)))
+  }
+
+  const handleDisconnect = (integrationId: string) => {
+    setIntegrations((prev) =>
+      prev.map((int) => (int.id === integrationId ? { ...int, connected: false, enabled: false } : int)),
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -91,7 +128,7 @@ export function IntegrationsPanel() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {availableIntegrations.map((integration) => {
+        {integrations.map((integration) => {
           const IconComponent = iconMap[integration.icon as keyof typeof iconMap]
 
           return (
@@ -114,7 +151,11 @@ export function IntegrationsPanel() {
                       </div>
                     </div>
                   </div>
-                  <Switch checked={integration.enabled} disabled={!integration.connected} />
+                  <Switch
+                    checked={integration.enabled}
+                    disabled={!integration.connected}
+                    onCheckedChange={(enabled) => handleToggle(integration.id, enabled)}
+                  />
                 </div>
               </CardHeader>
               <CardContent>
@@ -122,13 +163,22 @@ export function IntegrationsPanel() {
 
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-gray-500">Scopes: {integration.scopes.join(", ")}</div>
-                  <Button
-                    variant={integration.connected ? "outline" : "default"}
-                    size="sm"
-                    disabled={integration.connected}
-                  >
-                    {integration.connected ? "Connected" : "Connect"}
-                  </Button>
+                  <div className="flex gap-2">
+                    {integration.connected ? (
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => handleConnect(integration)}>
+                          Change Account
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDisconnect(integration.id)}>
+                          Disconnect
+                        </Button>
+                      </>
+                    ) : (
+                      <Button variant="default" size="sm" onClick={() => handleConnect(integration)}>
+                        Connect
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -146,6 +196,14 @@ export function IntegrationsPanel() {
           <Button variant="outline">Request Integration</Button>
         </CardContent>
       </Card>
+
+      {/* Account Selection Modal */}
+      <AccountSelectionModal
+        isOpen={showAccountSelection}
+        onClose={() => setShowAccountSelection(false)}
+        integration={selectedIntegration}
+        onAccountSelected={handleAccountSelected}
+      />
     </div>
   )
 }

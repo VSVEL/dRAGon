@@ -6,18 +6,23 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Send, Calendar, Mail, Plus } from "lucide-react"
+import { Send, Calendar, Mail, Plus, Github } from "lucide-react"
 import { useSession } from "next-auth/react"
 import type { CalendarEvent, EmailData, DetectedEvent } from "@/lib/types"
 import { EventCard } from "./event-card"
 import { EmailCard } from "./email-card"
 import { DetectedEventCard } from "./detected-event-card"
+import { GitHubRepoCard, GitHubIssueCard } from "./github-card"
 import { DragonLogo } from "./dragon-logo"
+import { Badge } from "@/components/ui/badge"
 
 interface ContextData {
   events: CalendarEvent[]
   emails: EmailData[]
   detectedEvents: DetectedEvent[]
+  githubRepos: any[]
+  githubIssues: any[]
+  accountInfo: Record<string, { email: string; name: string; provider: string }>
 }
 
 export default function ChatInterface() {
@@ -26,27 +31,63 @@ export default function ChatInterface() {
     events: [],
     emails: [],
     detectedEvents: [],
+    githubRepos: [],
+    githubIssues: [],
+    accountInfo: {},
   })
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: "/api/chat",
     onFinish: () => {
-      // Refresh context data after AI response
       fetchContextData()
     },
   })
 
   const fetchContextData = async () => {
     try {
-      const [calendarRes, emailsRes] = await Promise.all([fetch("/api/calendar"), fetch("/api/emails")])
+      const response = await fetch("/api/context")
+      if (response.ok) {
+        const data = await response.json()
 
-      if (calendarRes.ok && emailsRes.ok) {
-        const [calendarData, emailsData] = await Promise.all([calendarRes.json(), emailsRes.json()])
+        // Process the account-specific data
+        const processedData: ContextData = {
+          events: [],
+          emails: [],
+          detectedEvents: [],
+          githubRepos: [],
+          githubIssues: [],
+          accountInfo: {},
+        }
 
-        // Simple event detection (in production, use more sophisticated NLP)
+        // Extract data from each account-specific integration
+        Object.entries(data.data).forEach(([key, value]: [string, any]) => {
+          if (value.error) return
+
+          const [integrationId, accountEmail] = key.split("_")
+          processedData.accountInfo[key] = value.account
+
+          switch (integrationId) {
+            case "calendar":
+              processedData.events.push(...(value.data || []))
+              break
+            case "gmail":
+              processedData.emails.push(...(value.data || []))
+              break
+            case "github":
+              if (value.data?.repositories) {
+                processedData.githubRepos.push(...value.data.repositories)
+              }
+              if (value.data?.issues) {
+                processedData.githubIssues.push(...value.data.issues)
+              }
+              break
+          }
+        })
+
+        // Simple event detection
         const detectedEvents: DetectedEvent[] = []
-        emailsData.emails?.forEach((email: EmailData) => {
+        processedData.emails.forEach((email: EmailData) => {
           const text = `${email.subject} ${email.snippet}`.toLowerCase()
           if (text.includes("meeting") || text.includes("call") || text.includes("appointment")) {
             detectedEvents.push({
@@ -59,12 +100,9 @@ export default function ChatInterface() {
             })
           }
         })
+        processedData.detectedEvents = detectedEvents
 
-        setContextData({
-          events: calendarData.events || [],
-          emails: emailsData.emails || [],
-          detectedEvents,
-        })
+        setContextData(processedData)
       }
     } catch (error) {
       console.error("Error fetching context data:", error)
@@ -103,11 +141,22 @@ export default function ChatInterface() {
       })
 
       if (response.ok) {
-        fetchContextData() // Refresh data
+        fetchContextData()
       }
     } catch (error) {
       console.error("Error adding event:", error)
     }
+  }
+
+  const getAccountBadge = (dataKey: string) => {
+    const accountInfo = contextData.accountInfo[dataKey]
+    if (!accountInfo) return null
+
+    return (
+      <Badge variant="outline" className="text-xs">
+        {accountInfo.email}
+      </Badge>
+    )
   }
 
   return (
@@ -124,7 +173,16 @@ export default function ChatInterface() {
           </h3>
           <div className="space-y-2">
             {contextData.events.slice(0, 3).map((event) => (
-              <EventCard key={event.id} event={event} compact />
+              <div key={event.id}>
+                <EventCard event={event} compact />
+                {getAccountBadge(
+                  `calendar_${
+                    Object.keys(contextData.accountInfo)
+                      .find((k) => k.startsWith("calendar_"))
+                      ?.split("_")[1] || ""
+                  }`,
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -137,10 +195,67 @@ export default function ChatInterface() {
           </h3>
           <div className="space-y-2">
             {contextData.emails.slice(0, 3).map((email) => (
-              <EmailCard key={email.id} email={email} compact />
+              <div key={email.id}>
+                <EmailCard email={email} compact />
+                {getAccountBadge(
+                  `gmail_${
+                    Object.keys(contextData.accountInfo)
+                      .find((k) => k.startsWith("gmail_"))
+                      ?.split("_")[1] || ""
+                  }`,
+                )}
+              </div>
             ))}
           </div>
         </div>
+
+        {/* GitHub Repositories */}
+        {contextData.githubRepos.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <Github className="h-4 w-4" />
+              Recent Repositories ({contextData.githubRepos.length})
+            </h3>
+            <div className="space-y-2">
+              {contextData.githubRepos.slice(0, 2).map((repo) => (
+                <div key={repo.id}>
+                  <GitHubRepoCard repo={repo} compact />
+                  {getAccountBadge(
+                    `github_${
+                      Object.keys(contextData.accountInfo)
+                        .find((k) => k.startsWith("github_"))
+                        ?.split("_")[1] || ""
+                    }`,
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* GitHub Issues */}
+        {contextData.githubIssues.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <Github className="h-4 w-4" />
+              Assigned Issues ({contextData.githubIssues.length})
+            </h3>
+            <div className="space-y-2">
+              {contextData.githubIssues.slice(0, 2).map((issue) => (
+                <div key={issue.id}>
+                  <GitHubIssueCard issue={issue} compact />
+                  {getAccountBadge(
+                    `github_${
+                      Object.keys(contextData.accountInfo)
+                        .find((k) => k.startsWith("github_"))
+                        ?.split("_")[1] || ""
+                    }`,
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Detected Events */}
         {contextData.detectedEvents.length > 0 && (
@@ -164,6 +279,17 @@ export default function ChatInterface() {
         <div className="bg-white border-b border-gray-200 p-4">
           <h1 className="text-xl font-semibold">dRAGon Assistant</h1>
           <p className="text-gray-600 text-sm">Ask me about your schedule, emails, or productivity tasks</p>
+
+          {/* Connected Accounts Info */}
+          {Object.keys(contextData.accountInfo).length > 0 && (
+            <div className="flex gap-1 mt-2">
+              {Object.entries(contextData.accountInfo).map(([key, account]) => (
+                <Badge key={key} variant="outline" className="text-xs">
+                  {account.provider}: {account.email}
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Messages */}
@@ -181,6 +307,7 @@ export default function ChatInterface() {
                       <li>• "What meetings do I have today?"</li>
                       <li>• "Summarize my morning emails"</li>
                       <li>• "Any meetings missing from my calendar?"</li>
+                      <li>• "Show me my GitHub activity"</li>
                     </ul>
                   </div>
                 </div>
