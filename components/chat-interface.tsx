@@ -3,150 +3,166 @@
 import { useState, useRef, useEffect } from "react"
 import { useChat } from "ai/react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Send, Calendar, Mail, Clock, MapPin } from "lucide-react"
+import { Send, Bot, User, Calendar, Mail, Plus } from "lucide-react"
 import { useSession } from "next-auth/react"
-import type { EmailData, CalendarEvent } from "@/lib/types"
+import type { CalendarEvent, EmailData, DetectedEvent } from "@/lib/types"
+import { EventCard } from "./event-card"
+import { EmailCard } from "./email-card"
+import { DetectedEventCard } from "./detected-event-card"
 
 interface ContextData {
-  gmail?: EmailData[]
-  calendar?: CalendarEvent[]
+  events: CalendarEvent[]
+  emails: EmailData[]
+  detectedEvents: DetectedEvent[]
 }
 
 export default function ChatInterface() {
   const { data: session } = useSession()
-  const [contextData, setContextData] = useState<ContextData>({})
+  const [contextData, setContextData] = useState<ContextData>({
+    events: [],
+    emails: [],
+    detectedEvents: [],
+  })
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: "/api/chat",
+    onFinish: () => {
+      // Refresh context data after AI response
+      fetchContextData()
+    },
   })
 
-  // Fetch context data on component mount
-  useEffect(() => {
-    const fetchContext = async () => {
-      try {
-        const response = await fetch("/api/context")
-        if (response.ok) {
-          const data = await response.json()
-          setContextData(data)
-        } else {
-          console.warn("Failed to fetch context data:", response.status)
-          // Don't show error to user, just continue without context
-        }
-      } catch (error) {
-        console.error("Error fetching context:", error)
-        // Continue without context data
-      }
-    }
+  const fetchContextData = async () => {
+    try {
+      const [calendarRes, emailsRes] = await Promise.all([fetch("/api/calendar"), fetch("/api/emails")])
 
+      if (calendarRes.ok && emailsRes.ok) {
+        const [calendarData, emailsData] = await Promise.all([calendarRes.json(), emailsRes.json()])
+
+        // Simple event detection (in production, use more sophisticated NLP)
+        const detectedEvents: DetectedEvent[] = []
+        emailsData.emails?.forEach((email: EmailData) => {
+          const text = `${email.subject} ${email.snippet}`.toLowerCase()
+          if (text.includes("meeting") || text.includes("call") || text.includes("appointment")) {
+            detectedEvents.push({
+              title: email.subject,
+              date: email.date,
+              source: "email",
+              sourceId: email.id,
+              confidence: 0.7,
+              description: email.snippet,
+            })
+          }
+        })
+
+        setContextData({
+          events: calendarData.events || [],
+          emails: emailsData.emails || [],
+          detectedEvents,
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching context data:", error)
+    }
+  }
+
+  useEffect(() => {
     if (session) {
-      fetchContext()
+      fetchContextData()
     }
   }, [session])
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }, [messages])
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
+  const handleAddToCalendar = async (detectedEvent: DetectedEvent) => {
+    try {
+      const eventData = {
+        summary: detectedEvent.title,
+        description: detectedEvent.description,
+        start: {
+          dateTime: new Date(detectedEvent.date).toISOString(),
+        },
+        end: {
+          dateTime: new Date(new Date(detectedEvent.date).getTime() + 60 * 60 * 1000).toISOString(),
+        },
+      }
+
+      const response = await fetch("/api/add-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(eventData),
+      })
+
+      if (response.ok) {
+        fetchContextData() // Refresh data
+      }
+    } catch (error) {
+      console.error("Error adding event:", error)
+    }
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar with context data */}
-      <div className="w-80 bg-white border-r border-gray-200 p-4 overflow-y-auto">
-        <h2 className="text-lg font-semibold mb-4">Context</h2>
+    <div className="flex h-full">
+      {/* Context Sidebar */}
+      <div className="w-80 bg-gray-50 border-r border-gray-200 p-4 overflow-y-auto">
+        <h2 className="text-lg font-semibold mb-4">Today's Context</h2>
 
-        {/* Calendar Events */}
-        {contextData.calendar && contextData.calendar.length > 0 ? (
-          <Card className="mb-4">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Upcoming Events
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {contextData.calendar.slice(0, 3).map((event) => (
-                <div key={event.id} className="p-2 bg-blue-50 rounded text-xs">
-                  <div className="font-medium">{event.summary}</div>
-                  <div className="text-gray-600 flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {formatDateTime(event.start.dateTime || event.start.date || "")}
-                  </div>
-                  {event.location && (
-                    <div className="text-gray-600 flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {event.location}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="mb-4">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Calendar
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-gray-500">No upcoming events</p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Upcoming Events */}
+        <div className="mb-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Upcoming Events ({contextData.events.length})
+          </h3>
+          <div className="space-y-2">
+            {contextData.events.slice(0, 3).map((event) => (
+              <EventCard key={event.id} event={event} compact />
+            ))}
+          </div>
+        </div>
 
         {/* Recent Emails */}
-        {contextData.gmail && contextData.gmail.length > 0 ? (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                Recent Emails
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {contextData.gmail.slice(0, 3).map((email) => (
-                <div key={email.id} className="p-2 bg-green-50 rounded text-xs">
-                  <div className="font-medium truncate">{email.subject}</div>
-                  <div className="text-gray-600 truncate">From: {email.from}</div>
-                  <div className="text-gray-500 text-xs truncate">{email.snippet}</div>
-                  {email.unread && <div className="text-blue-600 text-xs font-medium">Unread</div>}
-                </div>
+        <div className="mb-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            Recent Emails ({contextData.emails.length})
+          </h3>
+          <div className="space-y-2">
+            {contextData.emails.slice(0, 3).map((email) => (
+              <EmailCard key={email.id} email={email} compact />
+            ))}
+          </div>
+        </div>
+
+        {/* Detected Events */}
+        {contextData.detectedEvents.length > 0 && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Detected Events ({contextData.detectedEvents.length})
+            </h3>
+            <div className="space-y-2">
+              {contextData.detectedEvents.map((event, index) => (
+                <DetectedEventCard key={index} event={event} onAddToCalendar={() => handleAddToCalendar(event)} />
               ))}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                Gmail
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-gray-500">No recent emails</p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Main chat area */}
+      {/* Chat Area */}
       <div className="flex-1 flex flex-col">
-        {/* Chat header */}
+        {/* Chat Header */}
         <div className="bg-white border-b border-gray-200 p-4">
           <h1 className="text-xl font-semibold">AI Productivity Assistant</h1>
-          <p className="text-gray-600 text-sm">Your context-aware productivity partner</p>
+          <p className="text-gray-600 text-sm">Ask me about your schedule, emails, or productivity tasks</p>
         </div>
 
         {/* Messages */}
@@ -154,11 +170,19 @@ export default function ChatInterface() {
           <div className="space-y-4">
             {messages.length === 0 && (
               <div className="text-center text-gray-500 mt-8">
+                <Bot className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                 <h3 className="text-lg font-medium mb-2">Welcome to your AI Assistant!</h3>
-                <p className="text-sm">
-                  I can help you with your emails, calendar, and productivity tasks. Try asking me about your upcoming
-                  meetings or recent emails.
-                </p>
+                <p className="text-sm mb-4">I can help you with your calendar, emails, and productivity tasks.</p>
+                <div className="grid grid-cols-1 gap-2 max-w-md mx-auto text-left">
+                  <div className="p-3 bg-gray-100 rounded-lg">
+                    <p className="text-sm font-medium">Try asking:</p>
+                    <ul className="text-xs text-gray-600 mt-1 space-y-1">
+                      <li>• "What meetings do I have today?"</li>
+                      <li>• "Summarize my morning emails"</li>
+                      <li>• "Any meetings missing from my calendar?"</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -169,13 +193,15 @@ export default function ChatInterface() {
               >
                 {message.role === "assistant" && (
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback>AI</AvatarFallback>
+                    <AvatarFallback>
+                      <Bot className="h-4 w-4" />
+                    </AvatarFallback>
                   </Avatar>
                 )}
 
                 <div
                   className={`max-w-[70%] rounded-lg p-3 ${
-                    message.role === "user" ? "bg-blue-600 text-white" : "bg-white border border-gray-200"
+                    message.role === "user" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 shadow-sm"
                   }`}
                 >
                   <div className="whitespace-pre-wrap">{message.content}</div>
@@ -184,7 +210,9 @@ export default function ChatInterface() {
                 {message.role === "user" && (
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={session?.user?.image || ""} />
-                    <AvatarFallback>{session?.user?.name?.charAt(0) || "U"}</AvatarFallback>
+                    <AvatarFallback>
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
                   </Avatar>
                 )}
               </div>
@@ -193,9 +221,11 @@ export default function ChatInterface() {
             {isLoading && (
               <div className="flex gap-3 justify-start">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback>AI</AvatarFallback>
+                  <AvatarFallback>
+                    <Bot className="h-4 w-4" />
+                  </AvatarFallback>
                 </Avatar>
-                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
                   <div className="flex space-x-1">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                     <div
@@ -213,13 +243,13 @@ export default function ChatInterface() {
           </div>
         </ScrollArea>
 
-        {/* Input form */}
+        {/* Input Form */}
         <div className="bg-white border-t border-gray-200 p-4">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
               value={input}
               onChange={handleInputChange}
-              placeholder="Ask me about your emails, calendar, or anything else..."
+              placeholder="Ask me about your schedule, emails, or tasks..."
               className="flex-1"
               disabled={isLoading}
             />

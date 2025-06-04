@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Chrome, Calendar, Mail, Shield } from "lucide-react"
+import { Chrome, Calendar, Mail, Shield, Zap, Bot } from "lucide-react"
 
 export default function SignIn() {
   const router = useRouter()
@@ -24,17 +24,7 @@ export default function SignIn() {
   const handleSignIn = async () => {
     setIsLoading(true)
     try {
-      const result = await signIn("google", {
-        callbackUrl: "/",
-        redirect: false,
-      })
-
-      if (result?.error) {
-        console.error("Sign in error:", result.error)
-        // Handle error appropriately
-      } else if (result?.url) {
-        router.push(result.url)
-      }
+      await signIn("google", { callbackUrl: "/" })
     } catch (error) {
       console.error("Sign in error:", error)
     } finally {
@@ -43,24 +33,33 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+            <Zap className="h-6 w-6 text-blue-600" />
+          </div>
           <CardTitle className="text-2xl font-bold">AI Productivity Assistant</CardTitle>
-          <CardDescription>Connect your Google account to get started with your personal AI assistant</CardDescription>
+          <CardDescription>
+            Your personal AI-powered productivity partner. Connect your Google account to get started.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-3">
             <div className="flex items-center gap-3 text-sm text-gray-600">
-              <Mail className="h-4 w-4" />
-              <span>Access your Gmail for email insights</span>
+              <Bot className="h-4 w-4 text-blue-500" />
+              <span>AI-powered insights and suggestions</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-gray-600">
-              <Calendar className="h-4 w-4" />
-              <span>View your calendar events and schedule</span>
+              <Calendar className="h-4 w-4 text-green-500" />
+              <span>Smart calendar management</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-gray-600">
-              <Shield className="h-4 w-4" />
+              <Mail className="h-4 w-4 text-red-500" />
+              <span>Email analysis and insights</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-gray-600">
+              <Shield className="h-4 w-4 text-purple-500" />
               <span>Secure OAuth authentication</span>
             </div>
           </div>
@@ -70,9 +69,13 @@ export default function SignIn() {
             {isLoading ? "Connecting..." : "Continue with Google"}
           </Button>
 
-          <p className="text-xs text-gray-500 text-center">
-            We only access the data you explicitly grant permission for and never store sensitive information.
-          </p>
+          <div className="text-center">
+            <p className="text-xs text-gray-500">
+              By continuing, you agree to our Terms of Service and Privacy Policy.
+              <br />
+              We only access the data you explicitly grant permission for.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

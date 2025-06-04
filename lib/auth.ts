@@ -4,6 +4,8 @@ import GoogleProvider from "next-auth/providers/google"
 declare module "next-auth" {
   interface Session {
     accessToken?: string
+    refreshToken?: string
+    error?: string
   }
 }
 
@@ -11,6 +13,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     accessToken?: string
     refreshToken?: string
+    error?: string
   }
 }
 
@@ -26,7 +29,8 @@ export const authOptions: NextAuthOptions = {
             "email",
             "profile",
             "https://www.googleapis.com/auth/gmail.readonly",
-            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.events",
           ].join(" "),
           access_type: "offline",
           prompt: "consent",
@@ -44,14 +48,20 @@ export const authOptions: NextAuthOptions = {
         return token
       } catch (error) {
         console.error("JWT callback error:", error)
+        token.error = "RefreshAccessTokenError"
         return token
       }
     },
     async session({ session, token }) {
       try {
-        if (token.accessToken) {
-          session.accessToken = token.accessToken as string
+        session.accessToken = token.accessToken as string
+        session.refreshToken = token.refreshToken as string
+
+        // Pass any errors to the client
+        if (token.error) {
+          session.error = token.error as string
         }
+
         return session
       } catch (error) {
         console.error("Session callback error:", error)
@@ -62,6 +72,7 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/auth/signin",
     error: "/auth/error",
+    signOut: "/auth/signin",
   },
   debug: process.env.NODE_ENV === "development",
   secret: process.env.NEXTAUTH_SECRET,
