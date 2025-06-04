@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 export default function AuthError() {
   const searchParams = useSearchParams()
@@ -45,6 +46,7 @@ export default function AuthError() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          <Image src="/logo.svg" alt="dRAGon Logo" width={180} height={54} className="mx-auto mb-4" />
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
             <AlertCircle className="h-6 w-6 text-red-600" />
           </div>
@@ -59,7 +61,7 @@ export default function AuthError() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Button asChild>
+            <Button asChild className="bg-indigo-600 hover:bg-indigo-700">
               <Link href="/auth/signin">Try Again</Link>
             </Button>
 

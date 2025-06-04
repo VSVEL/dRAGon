@@ -6,7 +6,9 @@ import { useEffect } from "react"
 import ChatInterface from "@/components/chat-interface"
 import { Button } from "@/components/ui/button"
 import { signOut } from "next-auth/react"
-import { LogOut, Settings, Zap } from "lucide-react"
+import { LogOut, Settings } from "lucide-react"
+import { DragonLogo } from "@/components/dragon-logo"
+import Image from "next/image"
 
 export default function Home() {
   const { data: session, status } = useSession()
@@ -28,7 +30,7 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <DragonLogo size="lg" className="mx-auto mb-4 animate-pulse" />
           <p className="text-gray-600">Loading your assistant...</p>
         </div>
       </div>
@@ -45,8 +47,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Zap className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl font-bold">AI Assistant</h1>
+            <Image src="/logo.svg" alt="dRAGon Logo" width={120} height={36} />
           </div>
           <div className="text-sm text-gray-600">
             Welcome back, <span className="font-medium">{session.user?.name}</span>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, XCircle, AlertCircle, RefreshCw, User, Mail } from "lucide-react"
+import Image from "next/image"
 
 export default function TestAuthPage() {
   const { data: session, status } = useSession()
@@ -70,7 +71,7 @@ export default function TestAuthPage() {
       case "unauthenticated":
         return <XCircle className="h-5 w-5 text-red-500" />
       case "loading":
-        return <RefreshCw className="h-5 w-5 text-blue-500 animate-spin" />
+        return <RefreshCw className="h-5 w-5 text-indigo-500 animate-spin" />
       default:
         return <AlertCircle className="h-5 w-5 text-yellow-500" />
     }
@@ -87,6 +88,7 @@ export default function TestAuthPage() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="text-center">
+          <Image src="/logo.svg" alt="dRAGon Logo" width={180} height={54} className="mx-auto mb-4" />
           <h1 className="text-3xl font-bold mb-2">Authentication Flow Test</h1>
           <p className="text-gray-600">Test and verify the complete authentication and API integration</p>
         </div>

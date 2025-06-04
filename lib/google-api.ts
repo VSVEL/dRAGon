@@ -7,10 +7,26 @@ export class GoogleAPIClient {
     this.accessToken = accessToken
   }
 
-  async fetchEmails(maxResults = 20): Promise<EmailData[]> {
+  async fetchEmails(
+    maxResults = 20,
+    query = "in:inbox",
+    includeSpam = false,
+    includeTrash = false,
+  ): Promise<EmailData[]> {
     try {
+      // Build the query with additional parameters
+      let searchQuery = query
+      if (!includeSpam) {
+        searchQuery += " -in:spam"
+      }
+      if (!includeTrash) {
+        searchQuery += " -in:trash"
+      }
+
+      console.log("Gmail API: Using query:", searchQuery)
+
       const response = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=in:inbox`,
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(searchQuery)}`,
         {
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
@@ -19,33 +35,40 @@ export class GoogleAPIClient {
       )
 
       if (!response.ok) {
-        throw new Error(`Gmail API error: ${response.status}`)
+        throw new Error(`Gmail API error: ${response.status} ${response.statusText}`)
       }
 
       const data = await response.json()
       const emails: EmailData[] = []
 
+      console.log("Gmail API: Found", data.messages?.length || 0, "message IDs")
+
+      // Fetch details for each message (this is where quota is used heavily)
       for (const message of data.messages || []) {
-        const emailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`, {
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-          },
-        })
-
-        if (emailResponse.ok) {
-          const emailData = await emailResponse.json()
-          const headers = emailData.payload.headers
-
-          emails.push({
-            id: emailData.id,
-            subject: headers.find((h: any) => h.name === "Subject")?.value || "No Subject",
-            snippet: emailData.snippet || "",
-            from: headers.find((h: any) => h.name === "From")?.value || "Unknown",
-            date: headers.find((h: any) => h.name === "Date")?.value || "",
-            unread: emailData.labelIds?.includes("UNREAD") || false,
-            threadId: emailData.threadId,
-            labels: emailData.labelIds || [],
+        try {
+          const emailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`, {
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+            },
           })
+
+          if (emailResponse.ok) {
+            const emailData = await emailResponse.json()
+            const headers = emailData.payload?.headers || []
+
+            emails.push({
+              id: emailData.id,
+              subject: headers.find((h: any) => h.name === "Subject")?.value || "No Subject",
+              snippet: emailData.snippet || "",
+              from: headers.find((h: any) => h.name === "From")?.value || "Unknown",
+              date: headers.find((h: any) => h.name === "Date")?.value || "",
+              unread: emailData.labelIds?.includes("UNREAD") || false,
+              threadId: emailData.threadId,
+              labels: emailData.labelIds || [],
+            })
+          }
+        } catch (emailError) {
+          console.warn(`Failed to fetch email ${message.id}:`, emailError)
         }
       }
 

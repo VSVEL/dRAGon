@@ -8,8 +8,11 @@ import { DebugPanel } from "@/components/debug-panel"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "AI Productivity Assistant",
-  description: "Your personal AI-powered productivity partner",
+  title: "dRAGon - AI Productivity Assistant",
+  description: "Your context-aware AI productivity partner",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+  },
     generator: 'v0.dev'
 }
 

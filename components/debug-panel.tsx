@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Bug, ChevronDown, ChevronUp } from "lucide-react"
+import { DragonLogo } from "./dragon-logo"
 
 export function DebugPanel() {
   const { data: session, status } = useSession()
@@ -21,8 +22,9 @@ export function DebugPanel() {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
+              <DragonLogo size="sm" variant="simple" />
               <Bug className="h-4 w-4" />
-              Debug Info
+              dRAGon Debug
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={() => setIsOpen(!isOpen)}>
               {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}

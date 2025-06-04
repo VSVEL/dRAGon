@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Send, Bot, User, Calendar, Mail, Plus } from "lucide-react"
+import { Send, Calendar, Mail, Plus } from "lucide-react"
 import { useSession } from "next-auth/react"
 import type { CalendarEvent, EmailData, DetectedEvent } from "@/lib/types"
 import { EventCard } from "./event-card"
 import { EmailCard } from "./email-card"
 import { DetectedEventCard } from "./detected-event-card"
+import { DragonLogo } from "./dragon-logo"
 
 interface ContextData {
   events: CalendarEvent[]
@@ -161,7 +162,7 @@ export default function ChatInterface() {
       <div className="flex-1 flex flex-col">
         {/* Chat Header */}
         <div className="bg-white border-b border-gray-200 p-4">
-          <h1 className="text-xl font-semibold">AI Productivity Assistant</h1>
+          <h1 className="text-xl font-semibold">dRAGon Assistant</h1>
           <p className="text-gray-600 text-sm">Ask me about your schedule, emails, or productivity tasks</p>
         </div>
 
@@ -170,8 +171,8 @@ export default function ChatInterface() {
           <div className="space-y-4">
             {messages.length === 0 && (
               <div className="text-center text-gray-500 mt-8">
-                <Bot className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <h3 className="text-lg font-medium mb-2">Welcome to your AI Assistant!</h3>
+                <DragonLogo size="xl" className="mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Welcome to dRAGon!</h3>
                 <p className="text-sm mb-4">I can help you with your calendar, emails, and productivity tasks.</p>
                 <div className="grid grid-cols-1 gap-2 max-w-md mx-auto text-left">
                   <div className="p-3 bg-gray-100 rounded-lg">
@@ -194,14 +195,14 @@ export default function ChatInterface() {
                 {message.role === "assistant" && (
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>
-                      <Bot className="h-4 w-4" />
+                      <DragonLogo size="sm" variant="simple" />
                     </AvatarFallback>
                   </Avatar>
                 )}
 
                 <div
                   className={`max-w-[70%] rounded-lg p-3 ${
-                    message.role === "user" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 shadow-sm"
+                    message.role === "user" ? "bg-indigo-600 text-white" : "bg-white border border-gray-200 shadow-sm"
                   }`}
                 >
                   <div className="whitespace-pre-wrap">{message.content}</div>
@@ -210,9 +211,7 @@ export default function ChatInterface() {
                 {message.role === "user" && (
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={session?.user?.image || ""} />
-                    <AvatarFallback>
-                      <User className="h-4 w-4" />
-                    </AvatarFallback>
+                    <AvatarFallback>{session?.user?.name?.charAt(0) || "U"}</AvatarFallback>
                   </Avatar>
                 )}
               </div>
@@ -222,18 +221,18 @@ export default function ChatInterface() {
               <div className="flex gap-3 justify-start">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback>
-                    <Bot className="h-4 w-4" />
+                    <DragonLogo size="sm" variant="simple" />
                   </AvatarFallback>
                 </Avatar>
                 <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
                   <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
                     <div
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"
                       style={{ animationDelay: "0.1s" }}
                     ></div>
                     <div
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"
                       style={{ animationDelay: "0.2s" }}
                     ></div>
                   </div>
@@ -253,7 +252,7 @@ export default function ChatInterface() {
               className="flex-1"
               disabled={isLoading}
             />
-            <Button type="submit" disabled={isLoading || !input.trim()}>
+            <Button type="submit" disabled={isLoading || !input.trim()} className="bg-indigo-600 hover:bg-indigo-700">
               <Send className="h-4 w-4" />
             </Button>
           </form>

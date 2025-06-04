@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { IntegrationsPanel } from "@/components/integrations-panel"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Zap } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
+import Image from "next/image"
 
 export default function IntegrationsPage() {
   const { data: session, status } = useSession()
@@ -21,7 +22,7 @@ export default function IntegrationsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
         </div>
       </div>
@@ -42,8 +43,7 @@ export default function IntegrationsPage() {
             Back to Chat
           </Button>
           <div className="flex items-center gap-2">
-            <Zap className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl font-bold">AI Assistant</h1>
+            <Image src="/logo.svg" alt="dRAGon Logo" width={120} height={36} />
           </div>
         </div>
       </div>

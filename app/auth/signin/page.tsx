@@ -5,7 +5,8 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Chrome, Calendar, Mail, Shield, Zap, Bot } from "lucide-react"
+import { Chrome, Calendar, Mail, Shield, Bot } from "lucide-react"
+import Image from "next/image"
 
 export default function SignIn() {
   const router = useRouter()
@@ -36,8 +37,8 @@ export default function SignIn() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-            <Zap className="h-6 w-6 text-blue-600" />
+          <div className="mx-auto mb-4">
+            <Image src="/logo.svg" alt="dRAGon Logo" width={180} height={54} className="mx-auto" />
           </div>
           <CardTitle className="text-2xl font-bold">AI Productivity Assistant</CardTitle>
           <CardDescription>
