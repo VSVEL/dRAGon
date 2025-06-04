@@ -1,48 +1,59 @@
-"use client"
+"use client";
 
-import { signIn, getSession } from "next-auth/react"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Chrome, Calendar, Mail, Shield, Bot } from "lucide-react"
-import Image from "next/image"
+import { signIn, getSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Chrome, Calendar, Mail, Shield, Bot } from "lucide-react";
+import { DragonLogo } from "@/components/dragon-logo";
+
 
 export default function SignIn() {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
-      const session = await getSession()
+      const session = await getSession();
       if (session) {
-        router.push("/")
+        router.push("/");
       }
-    }
-    checkSession()
-  }, [router])
+    };
+    checkSession();
+  }, [router]);
 
   const handleSignIn = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      await signIn("google", { callbackUrl: "/" })
+      await signIn("google", { callbackUrl: "/" });
     } catch (error) {
-      console.error("Sign in error:", error)
+      console.error("Sign in error:", error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4">
-            <Image src="/logo.svg" alt="dRAGon Logo" width={180} height={54} className="mx-auto" />
+            {/* Replace the Image with DragonLogo */}
+            <DragonLogo size="xl" className="mx-auto" />
           </div>
-          <CardTitle className="text-2xl font-bold">AI Productivity Assistant</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            AI Productivity Assistant
+          </CardTitle>
           <CardDescription>
-            Your personal AI-powered productivity partner. Connect your Google account to get started.
+            Your personal AI-powered productivity partner. Connect your Google
+            account to get started.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -65,14 +76,20 @@ export default function SignIn() {
             </div>
           </div>
 
-          <Button onClick={handleSignIn} disabled={isLoading} className="w-full" size="lg">
+          <Button
+            onClick={handleSignIn}
+            disabled={isLoading}
+            className="w-full"
+            size="lg"
+          >
             <Chrome className="h-5 w-5 mr-2" />
             {isLoading ? "Connecting..." : "Continue with Google"}
           </Button>
 
           <div className="text-center">
             <p className="text-xs text-gray-500">
-              By continuing, you agree to our Terms of Service and Privacy Policy.
+              By continuing, you agree to our Terms of Service and Privacy
+              Policy.
               <br />
               We only access the data you explicitly grant permission for.
             </p>
@@ -80,5 +97,5 @@ export default function SignIn() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

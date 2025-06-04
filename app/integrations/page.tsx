@@ -1,22 +1,22 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
-import { MultiAccountManager } from "@/components/multi-account-manager"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
-import Image from "next/image"
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { IntegrationsPanel } from "@/components/integrations-panel";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import Image from "next/image";
 
 export default function IntegrationsPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/auth/signin")
+      router.push("/auth/signin");
     }
-  }, [status, router])
+  }, [status, router]);
 
   if (status === "loading") {
     return (
@@ -26,11 +26,11 @@ export default function IntegrationsPage() {
           <p className="text-gray-600">Loading...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!session) {
-    return null
+    return null;
   }
 
   return (
@@ -50,8 +50,8 @@ export default function IntegrationsPage() {
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto p-6">
-        <MultiAccountManager />
+        <IntegrationsPanel />
       </div>
     </div>
-  )
+  );
 }

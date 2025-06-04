@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, XCircle, AlertCircle, RefreshCw, User, Mail } from "lucide-react"
 import Image from "next/image"
+import { DragonLogo } from "@/components/dragon-logo"
 
 export default function TestAuthPage() {
   const { data: session, status } = useSession()
@@ -40,7 +41,7 @@ export default function TestAuthPage() {
         data: emailResponse.ok ? await emailResponse.json() : null,
       }
     } catch (error) {
-      results.emails = { error: error.message }
+      results.emails = { error: error && typeof error === "object" && "message" in error ? (error as any).message : String(error) }
     }
 
     // Test Chat API
@@ -88,7 +89,12 @@ export default function TestAuthPage() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="text-center">
-          <Image src="/logo.svg" alt="dRAGon Logo" width={180} height={54} className="mx-auto mb-4" />
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-center">
+              <DragonLogo size="lg" className="mx-auto mb-4 animate-pulse" />
+              <p className="text-gray-600">Loading your assistant...</p>
+            </div>
+          </div>
           <h1 className="text-3xl font-bold mb-2">Authentication Flow Test</h1>
           <p className="text-gray-600">Test and verify the complete authentication and API integration</p>
         </div>
