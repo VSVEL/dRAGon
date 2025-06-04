@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
-import { IntegrationsPanel } from "@/components/integrations-panel"
+import { MultiAccountManager } from "@/components/multi-account-manager"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Image from "next/image"
@@ -50,7 +50,7 @@ export default function IntegrationsPage() {
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto p-6">
-        <IntegrationsPanel />
+        <MultiAccountManager />
       </div>
     </div>
   )
