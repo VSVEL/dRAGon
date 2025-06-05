@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const githubToken = session.accessToken // This would be GitHub token in real implementation
+    // For now, we'll use the session's access token
+    // In a real implementation, we'd get a GitHub-specific token
+    const githubToken = session.accessToken
 
     if (!githubToken) {
       return NextResponse.json({ error: "No GitHub access token available" }, { status: 401 })
