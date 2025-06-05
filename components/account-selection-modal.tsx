@@ -48,36 +48,19 @@ export function AccountSelectionModal({ isOpen, onClose, integration, onAccountS
   const loadConnectedAccounts = async () => {
     setIsLoading(true)
     try {
-      // Simulate loading connected accounts
-      // In real implementation, this would fetch from your backend
-      const mockAccounts: ConnectedAccount[] = [
-        {
-          id: "google_1",
-          provider: "google",
-          email: "john.doe@gmail.com",
-          name: "John Doe",
-          image: "https://github.com/shadcn.png",
-          isActive: true,
-          connectedAt: "2024-01-15",
-        },
-        {
-          id: "google_2",
-          provider: "google",
-          email: "john.doe@company.com",
-          name: "John Doe (Work)",
-          image: "https://github.com/shadcn.png",
-          isActive: true,
-          connectedAt: "2024-01-10",
-        },
-      ]
+      // Fetch connected accounts from the API
+      const response = await fetch(`/api/accounts?provider=${getProviderForIntegration(integration?.id || "")}`)
 
-      // Filter accounts based on integration provider
-      const provider = getProviderForIntegration(integration?.id || "")
-      const filteredAccounts = mockAccounts.filter((account) => account.provider === provider)
+      if (!response.ok) {
+        throw new Error("Failed to load accounts")
+      }
 
-      setConnectedAccounts(filteredAccounts)
+      const data = await response.json()
+      setConnectedAccounts(data.accounts || [])
     } catch (error) {
       console.error("Error loading connected accounts:", error)
+      // Fallback to empty accounts list
+      setConnectedAccounts([])
     } finally {
       setIsLoading(false)
     }
@@ -97,21 +80,43 @@ export function AccountSelectionModal({ isOpen, onClose, integration, onAccountS
 
   const handleConnectNewAccount = () => {
     const provider = getProviderForIntegration(integration?.id || "")
+    const integrationId = integration?.id || ""
 
-    // Simulate OAuth flow
-    console.log(`Starting OAuth flow for ${provider}`)
+    // Redirect to the appropriate OAuth flow
+    initiateOAuthFlow(provider, integrationId)
+  }
 
-    // In real implementation, this would:
-    // 1. Open OAuth popup/redirect
-    // 2. Handle OAuth callback
-    // 3. Save new account to backend
-    // 4. Return new account ID
+  const initiateOAuthFlow = (provider: string, integrationId: string) => {
+    // Store the integration ID in session storage to retrieve after OAuth callback
+    sessionStorage.setItem("pendingIntegration", integrationId)
 
-    // For demo, simulate successful connection
-    setTimeout(() => {
-      const newAccountId = `${provider}_${Date.now()}`
-      onAccountSelected(newAccountId, true)
-    }, 1000)
+    // Construct the redirect URL based on the provider
+    let authUrl = ""
+
+    switch (provider) {
+      case "github":
+        authUrl = `/api/auth/oauth/github`
+        break
+      case "google":
+        // For Google, we'll use a different endpoint for different scopes based on integration
+        authUrl = `/api/auth/oauth/google?integration=${integrationId}`
+        break
+      case "slack":
+        authUrl = `/api/auth/oauth/slack`
+        break
+      case "microsoft":
+        authUrl = `/api/auth/oauth/microsoft`
+        break
+      default:
+        console.error("Unknown provider:", provider)
+        return
+    }
+
+    // Close the modal before redirecting
+    onClose()
+
+    // Redirect to the OAuth flow
+    window.location.href = authUrl
   }
 
   const getProviderDisplayName = (provider: string): string => {

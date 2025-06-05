@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Mail, MessageSquare, Github, FileText, CheckSquare, Users, Zap } from "lucide-react"
 import { AccountSelectionModal } from "./account-selection-modal"
+import { toast } from "@/components/ui/use-toast"
 import type { Integration } from "@/lib/types"
 
 const availableIntegrations: Integration[] = [
@@ -87,9 +89,84 @@ const iconMap = {
 }
 
 export function IntegrationsPanel() {
+  const searchParams = useSearchParams()
   const [integrations, setIntegrations] = useState(availableIntegrations)
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null)
   const [showAccountSelection, setShowAccountSelection] = useState(false)
+
+  // Check for success or error messages in URL
+  useEffect(() => {
+    const success = searchParams.get("success")
+    const error = searchParams.get("error")
+
+    if (success) {
+      if (success === "github_connected") {
+        toast({
+          title: "GitHub Connected",
+          description: "Your GitHub account has been successfully connected.",
+          variant: "default",
+        })
+
+        // Update the GitHub integration status
+        setIntegrations((prev) =>
+          prev.map((int) => (int.id === "github" ? { ...int, connected: true, enabled: true } : int)),
+        )
+      } else if (success === "google_connected") {
+        toast({
+          title: "Google Account Connected",
+          description: "Your Google account has been successfully connected.",
+          variant: "default",
+        })
+
+        // We'll need to fetch the actual integrations to know which one was connected
+        fetchIntegrations()
+      }
+    }
+
+    if (error) {
+      toast({
+        title: "Connection Failed",
+        description:
+          error === "oauth_failed"
+            ? "Failed to initiate the connection. Please try again."
+            : "Failed to complete the connection. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }, [searchParams])
+
+  // Fetch integrations from the API
+  const fetchIntegrations = async () => {
+    try {
+      const response = await fetch("/api/integrations")
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch integrations")
+      }
+
+      const data = await response.json()
+
+      // Map the API data to our integration format
+      if (data.integrations && data.integrations.length > 0) {
+        const connectedIntegrationIds = new Set(data.integrations.map((i: any) => i.integrationId))
+
+        setIntegrations((prev) =>
+          prev.map((int) => ({
+            ...int,
+            connected: connectedIntegrationIds.has(int.id),
+            enabled: connectedIntegrationIds.has(int.id),
+          })),
+        )
+      }
+    } catch (error) {
+      console.error("Error fetching integrations:", error)
+    }
+  }
+
+  // Fetch integrations on component mount
+  useEffect(() => {
+    fetchIntegrations()
+  }, [])
 
   const handleConnect = (integration: Integration) => {
     setSelectedIntegration(integration)
@@ -110,14 +187,78 @@ export function IntegrationsPanel() {
     setSelectedIntegration(null)
   }
 
-  const handleToggle = (integrationId: string, enabled: boolean) => {
-    setIntegrations((prev) => prev.map((int) => (int.id === integrationId ? { ...int, enabled } : int)))
+  const handleToggle = async (integrationId: string, enabled: boolean) => {
+    try {
+      // Update the UI optimistically
+      setIntegrations((prev) => prev.map((int) => (int.id === integrationId ? { ...int, enabled } : int)))
+
+      // Update the backend
+      const response = await fetch("/api/integrations", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ integrationId, enabled }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to update integration")
+      }
+
+      toast({
+        title: enabled ? "Integration Enabled" : "Integration Disabled",
+        description: `${integrations.find((i) => i.id === integrationId)?.name} has been ${enabled ? "enabled" : "disabled"}.`,
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Error updating integration:", error)
+
+      // Revert the UI change
+      setIntegrations((prev) => prev.map((int) => (int.id === integrationId ? { ...int, enabled: !enabled } : int)))
+
+      toast({
+        title: "Update Failed",
+        description: "Failed to update integration status. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleDisconnect = (integrationId: string) => {
-    setIntegrations((prev) =>
-      prev.map((int) => (int.id === integrationId ? { ...int, connected: false, enabled: false } : int)),
-    )
+  const handleDisconnect = async (integrationId: string) => {
+    try {
+      // Update the UI optimistically
+      setIntegrations((prev) =>
+        prev.map((int) => (int.id === integrationId ? { ...int, connected: false, enabled: false } : int)),
+      )
+
+      // Update the backend
+      const response = await fetch(`/api/integrations?integrationId=${integrationId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to disconnect integration")
+      }
+
+      toast({
+        title: "Integration Disconnected",
+        description: `${integrations.find((i) => i.id === integrationId)?.name} has been disconnected.`,
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Error disconnecting integration:", error)
+
+      // Revert the UI change
+      setIntegrations((prev) =>
+        prev.map((int) => (int.id === integrationId ? { ...int, connected: true, enabled: true } : int)),
+      )
+
+      toast({
+        title: "Disconnect Failed",
+        description: "Failed to disconnect integration. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
