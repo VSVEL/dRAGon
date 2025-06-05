@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Send, Calendar, Mail, Plus, Crown } from "lucide-react"
+import { Send, Calendar, Mail, Plus } from "lucide-react"
 import { useSession } from "next-auth/react"
 import type { CalendarEvent, EmailData, DetectedEvent } from "@/lib/types"
 import { EventCard } from "./event-card"
@@ -19,7 +19,9 @@ interface ContextData {
   events: CalendarEvent[]
   emails: EmailData[]
   detectedEvents: DetectedEvent[]
-  accountInfo: Record<string, { email: string; name: string; provider: string; isPrimary?: boolean }>
+  githubRepos: any[]
+  githubIssues: any[]
+  accountInfo: Record<string, { email: string; name: string; provider: string }>
 }
 
 export default function ChatInterface() {
@@ -28,6 +30,8 @@ export default function ChatInterface() {
     events: [],
     emails: [],
     detectedEvents: [],
+    githubRepos: [],
+    githubIssues: [],
     accountInfo: {},
   })
   const [isLoadingContext, setIsLoadingContext] = useState(false)
@@ -41,110 +45,87 @@ export default function ChatInterface() {
   })
 
   const fetchContextData = async () => {
-    if (!session?.user?.email) {
+    if (!session?.accessToken) {
+      console.log("No access token available")
       return
     }
 
     setIsLoadingContext(true)
     try {
-      // Use the multi-account context API
-      const response = await fetch("/api/context-multi")
+      // Fetch calendar and email data directly using the existing APIs
+      const [calendarRes, emailsRes, contextRes] = await Promise.all([
+        fetch("/api/calendar"),
+        fetch("/api/emails"),
+        fetch("/api/context"),
+      ])
 
-      if (response.ok) {
-        const data = await response.json()
-
-        const processedData: ContextData = {
-          events: [],
-          emails: [],
-          detectedEvents: [],
-          accountInfo: {},
-        }
-
-        // Process data from all accounts
-        Object.entries(data.data).forEach(([key, value]: [string, any]) => {
-          if (value.error) {
-            console.error(`Error for ${key}:`, value.error)
-            return
-          }
-
-          const [integrationId, accountEmail] = key.split("_", 2)
-          processedData.accountInfo[key] = value.account
-
-          switch (integrationId) {
-            case "calendar":
-              // Add account info to each event
-              const eventsWithAccount = (value.data || []).map((event: CalendarEvent) => ({
-                ...event,
-                accountEmail,
-                accountName: value.account.name,
-                isPrimary: value.account.isPrimary,
-              }))
-              processedData.events.push(...eventsWithAccount)
-              break
-            case "gmail":
-              // Add account info to each email
-              const emailsWithAccount = (value.data || []).map((email: EmailData) => ({
-                ...email,
-                accountEmail,
-                accountName: value.account.name,
-                isPrimary: value.account.isPrimary,
-              }))
-              processedData.emails.push(...emailsWithAccount)
-              break
-          }
-        })
-
-        // Sort events by date
-        processedData.events.sort((a, b) => {
-          const dateA = new Date(a.start.dateTime || a.start.date || 0)
-          const dateB = new Date(b.start.dateTime || b.start.date || 0)
-          return dateA.getTime() - dateB.getTime()
-        })
-
-        // Sort emails by date (most recent first)
-        processedData.emails.sort((a, b) => {
-          const dateA = new Date(a.date)
-          const dateB = new Date(b.date)
-          return dateB.getTime() - dateA.getTime()
-        })
-
-        // Simple event detection from emails across all accounts
-        const detectedEvents: DetectedEvent[] = []
-        processedData.emails.forEach((email: any) => {
-          const text = `${email.subject} ${email.snippet}`.toLowerCase()
-          if (text.includes("meeting") || text.includes("call") || text.includes("appointment")) {
-            detectedEvents.push({
-              title: email.subject,
-              date: email.date,
-              source: "email",
-              sourceId: email.id,
-              confidence: 0.7,
-              description: email.snippet,
-              accountEmail: email.accountEmail,
-            })
-          }
-        })
-        processedData.detectedEvents = detectedEvents
-
-        setContextData(processedData)
-        console.log("Loaded multi-account data:", {
-          events: processedData.events.length,
-          emails: processedData.emails.length,
-          accounts: Object.keys(processedData.accountInfo).length,
-        })
+      const processedData: ContextData = {
+        events: [],
+        emails: [],
+        detectedEvents: [],
+        githubRepos: [],
+        githubIssues: [],
+        accountInfo: {},
       }
+
+      // Process calendar data
+      if (calendarRes.ok) {
+        const calendarData = await calendarRes.json()
+        processedData.events = calendarData.events || []
+        console.log("Loaded calendar events:", processedData.events.length)
+      } else {
+        console.error("Failed to fetch calendar:", await calendarRes.text())
+      }
+
+      // Process email data
+      if (emailsRes.ok) {
+        const emailsData = await emailsRes.json()
+        processedData.emails = emailsData.emails || []
+        console.log("Loaded emails:", processedData.emails.length)
+      } else {
+        console.error("Failed to fetch emails:", await emailsRes.text())
+      }
+
+      // Process context data for account info
+      if (contextRes.ok) {
+        const contextData = await contextRes.json()
+        if (contextData.accounts) {
+          contextData.accounts.forEach((account: any) => {
+            processedData.accountInfo[`${account.provider}_${account.email}`] = account
+          })
+        }
+      }
+
+      // Simple event detection from emails
+      const detectedEvents: DetectedEvent[] = []
+      processedData.emails.forEach((email: EmailData) => {
+        const text = `${email.subject} ${email.snippet}`.toLowerCase()
+        if (text.includes("meeting") || text.includes("call") || text.includes("appointment")) {
+          detectedEvents.push({
+            title: email.subject,
+            date: email.date,
+            source: "email",
+            sourceId: email.id,
+            confidence: 0.7,
+            description: email.snippet,
+          })
+        }
+      })
+      processedData.detectedEvents = detectedEvents
+
+      setContextData(processedData)
     } catch (error) {
-      console.error("Error fetching multi-account context data:", error)
+      console.error("Error fetching context data:", error)
     } finally {
       setIsLoadingContext(false)
     }
   }
 
   useEffect(() => {
-    if (session?.user?.email) {
+    if (session?.accessToken) {
       fetchContextData()
     }
-  }, [session?.user?.email])
+  }, [session?.accessToken])
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -179,23 +160,15 @@ export default function ChatInterface() {
     }
   }
 
-  const getAccountBadge = (item: any) => {
-    if (!item.accountEmail) return null
-
-    return (
-      <Badge variant="outline" className="text-xs flex items-center gap-1">
-        {item.isPrimary && <Crown className="h-3 w-3" />}
-        {item.accountEmail}
-      </Badge>
-    )
-  }
-
-  const getUniqueAccounts = () => {
-    const accounts = new Set()
-    Object.values(contextData.accountInfo).forEach((account) => {
-      accounts.add(account.email)
-    })
-    return Array.from(accounts)
+  const getAccountBadge = (email?: string) => {
+    if (!email && session?.user?.email) {
+      return (
+        <Badge variant="outline" className="text-xs">
+          {session.user.email}
+        </Badge>
+      )
+    }
+    return null
   }
 
   return (
@@ -207,7 +180,7 @@ export default function ChatInterface() {
         {isLoadingContext && (
           <div className="text-center py-4">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto mb-2"></div>
-            <p className="text-xs text-gray-600">Loading from all accounts...</p>
+            <p className="text-xs text-gray-600">Loading your data...</p>
           </div>
         )}
 
@@ -221,10 +194,10 @@ export default function ChatInterface() {
             {contextData.events.length === 0 && !isLoadingContext ? (
               <p className="text-xs text-gray-500">No upcoming events</p>
             ) : (
-              contextData.events.slice(0, 5).map((event: any) => (
-                <div key={`${event.id}_${event.accountEmail}`} className="space-y-1">
+              contextData.events.slice(0, 3).map((event) => (
+                <div key={event.id}>
                   <EventCard event={event} compact />
-                  {getAccountBadge(event)}
+                  {getAccountBadge()}
                 </div>
               ))
             )}
@@ -241,10 +214,10 @@ export default function ChatInterface() {
             {contextData.emails.length === 0 && !isLoadingContext ? (
               <p className="text-xs text-gray-500">No recent emails</p>
             ) : (
-              contextData.emails.slice(0, 5).map((email: any) => (
-                <div key={`${email.id}_${email.accountEmail}`} className="space-y-1">
+              contextData.emails.slice(0, 3).map((email) => (
+                <div key={email.id}>
                   <EmailCard email={email} compact />
-                  {getAccountBadge(email)}
+                  {getAccountBadge()}
                 </div>
               ))
             )}
@@ -259,11 +232,8 @@ export default function ChatInterface() {
               Detected Events ({contextData.detectedEvents.length})
             </h3>
             <div className="space-y-2">
-              {contextData.detectedEvents.map((event: any, index) => (
-                <div key={index} className="space-y-1">
-                  <DetectedEventCard event={event} onAddToCalendar={() => handleAddToCalendar(event)} />
-                  {getAccountBadge(event)}
-                </div>
+              {contextData.detectedEvents.map((event, index) => (
+                <DetectedEventCard key={index} event={event} onAddToCalendar={() => handleAddToCalendar(event)} />
               ))}
             </div>
           </div>
@@ -277,14 +247,12 @@ export default function ChatInterface() {
           <h1 className="text-xl font-semibold">dRAGon Assistant</h1>
           <p className="text-gray-600 text-sm">Ask me about your schedule, emails, or productivity tasks</p>
 
-          {/* Connected Accounts Info */}
-          {getUniqueAccounts().length > 0 && (
-            <div className="flex gap-1 mt-2 flex-wrap">
-              {getUniqueAccounts().map((email: any) => (
-                <Badge key={email} variant="outline" className="text-xs">
-                  Google: {email}
-                </Badge>
-              ))}
+          {/* Connected Account Info */}
+          {session?.user?.email && (
+            <div className="flex gap-1 mt-2">
+              <Badge variant="outline" className="text-xs">
+                Google: {session.user.email}
+              </Badge>
             </div>
           )}
         </div>
@@ -296,17 +264,15 @@ export default function ChatInterface() {
               <div className="text-center text-gray-500 mt-8">
                 <DragonLogo size="xl" className="mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">Welcome to dRAGon!</h3>
-                <p className="text-sm mb-4">
-                  I can help you with your calendar, emails, and productivity tasks across all your Google accounts.
-                </p>
+                <p className="text-sm mb-4">I can help you with your calendar, emails, and productivity tasks.</p>
                 <div className="grid grid-cols-1 gap-2 max-w-md mx-auto text-left">
                   <div className="p-3 bg-gray-100 rounded-lg">
                     <p className="text-sm font-medium">Try asking:</p>
                     <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                      <li>• "What meetings do I have today across all accounts?"</li>
-                      <li>• "Show me emails from my work account"</li>
-                      <li>• "Any conflicts between my personal and work calendars?"</li>
-                      <li>• "Summarize emails from all my accounts"</li>
+                      <li>• "What meetings do I have today?"</li>
+                      <li>• "Summarize my morning emails"</li>
+                      <li>• "Any meetings missing from my calendar?"</li>
+                      <li>• "Show me my GitHub activity"</li>
                     </ul>
                   </div>
                 </div>
@@ -374,7 +340,7 @@ export default function ChatInterface() {
             <Input
               value={input}
               onChange={handleInputChange}
-              placeholder="Ask me about your schedule, emails, or tasks across all accounts..."
+              placeholder="Ask me about your schedule, emails, or tasks..."
               className="flex-1"
               disabled={isLoading}
             />
