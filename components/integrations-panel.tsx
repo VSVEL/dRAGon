@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -10,72 +11,6 @@ import { Calendar, Mail, MessageSquare, Github, FileText, CheckSquare, Users, Za
 import { AccountSelectionModal } from "./account-selection-modal"
 import { toast } from "@/components/ui/use-toast"
 import type { Integration } from "@/lib/types"
-
-const availableIntegrations: Integration[] = [
-  {
-    id: "google-calendar",
-    name: "Google Calendar",
-    icon: "Calendar",
-    enabled: true,
-    connected: true,
-    scopes: ["calendar.readonly", "calendar.events"],
-    description: "Access your calendar events and create new ones",
-  },
-  {
-    id: "gmail",
-    name: "Gmail",
-    icon: "Mail",
-    enabled: true,
-    connected: true,
-    scopes: ["gmail.readonly"],
-    description: "Read and analyze your email messages",
-  },
-  {
-    id: "github",
-    name: "GitHub",
-    icon: "Github",
-    enabled: false,
-    connected: false,
-    scopes: ["repo", "notifications", "user:email"],
-    description: "Monitor your repositories, issues, and pull requests",
-  },
-  {
-    id: "slack",
-    name: "Slack",
-    icon: "MessageSquare",
-    enabled: false,
-    connected: false,
-    scopes: ["channels:read", "chat:write"],
-    description: "Access your Slack messages and channels",
-  },
-  {
-    id: "notion",
-    name: "Notion",
-    icon: "FileText",
-    enabled: false,
-    connected: false,
-    scopes: ["read_content", "insert_content"],
-    description: "Access your Notion pages and databases",
-  },
-  {
-    id: "linear",
-    name: "Linear",
-    icon: "CheckSquare",
-    enabled: false,
-    connected: false,
-    scopes: ["read", "write"],
-    description: "Manage your Linear issues and projects",
-  },
-  {
-    id: "microsoft-teams",
-    name: "Microsoft Teams",
-    icon: "Users",
-    enabled: false,
-    connected: false,
-    scopes: ["chat.read", "calendars.read"],
-    description: "Access your Teams messages and meetings",
-  },
-]
 
 const iconMap = {
   Calendar,
@@ -89,10 +24,82 @@ const iconMap = {
 }
 
 export function IntegrationsPanel() {
+  const { data: session } = useSession()
   const searchParams = useSearchParams()
-  const [integrations, setIntegrations] = useState(availableIntegrations)
+  const [integrations, setIntegrations] = useState<Integration[]>([])
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null)
   const [showAccountSelection, setShowAccountSelection] = useState(false)
+
+  // Initialize integrations based on session
+  useEffect(() => {
+    const baseIntegrations: Integration[] = [
+      {
+        id: "google-calendar",
+        name: "Google Calendar",
+        icon: "Calendar",
+        enabled: !!session?.accessToken,
+        connected: !!session?.accessToken,
+        scopes: ["calendar.readonly", "calendar.events"],
+        description: "Access your calendar events and create new ones",
+      },
+      {
+        id: "gmail",
+        name: "Gmail",
+        icon: "Mail",
+        enabled: !!session?.accessToken,
+        connected: !!session?.accessToken,
+        scopes: ["gmail.readonly"],
+        description: "Read and analyze your email messages",
+      },
+      {
+        id: "github",
+        name: "GitHub",
+        icon: "Github",
+        enabled: false,
+        connected: false,
+        scopes: ["repo", "notifications", "user:email"],
+        description: "Monitor your repositories, issues, and pull requests",
+      },
+      {
+        id: "slack",
+        name: "Slack",
+        icon: "MessageSquare",
+        enabled: false,
+        connected: false,
+        scopes: ["channels:read", "chat:write"],
+        description: "Access your Slack messages and channels",
+      },
+      {
+        id: "notion",
+        name: "Notion",
+        icon: "FileText",
+        enabled: false,
+        connected: false,
+        scopes: ["read_content", "insert_content"],
+        description: "Access your Notion pages and databases",
+      },
+      {
+        id: "linear",
+        name: "Linear",
+        icon: "CheckSquare",
+        enabled: false,
+        connected: false,
+        scopes: ["read", "write"],
+        description: "Manage your Linear issues and projects",
+      },
+      {
+        id: "microsoft-teams",
+        name: "Microsoft Teams",
+        icon: "Users",
+        enabled: false,
+        connected: false,
+        scopes: ["chat.read", "calendars.read"],
+        description: "Access your Teams messages and meetings",
+      },
+    ]
+
+    setIntegrations(baseIntegrations)
+  }, [session?.accessToken])
 
   // Check for success or error messages in URL
   useEffect(() => {
@@ -107,7 +114,6 @@ export function IntegrationsPanel() {
           variant: "default",
         })
 
-        // Update the GitHub integration status
         setIntegrations((prev) =>
           prev.map((int) => (int.id === "github" ? { ...int, connected: true, enabled: true } : int)),
         )
@@ -118,8 +124,12 @@ export function IntegrationsPanel() {
           variant: "default",
         })
 
-        // We'll need to fetch the actual integrations to know which one was connected
-        fetchIntegrations()
+        // Update Google integrations
+        setIntegrations((prev) =>
+          prev.map((int) =>
+            int.id === "google-calendar" || int.id === "gmail" ? { ...int, connected: true, enabled: true } : int,
+          ),
+        )
       }
     }
 
@@ -135,39 +145,6 @@ export function IntegrationsPanel() {
     }
   }, [searchParams])
 
-  // Fetch integrations from the API
-  const fetchIntegrations = async () => {
-    try {
-      const response = await fetch("/api/integrations")
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch integrations")
-      }
-
-      const data = await response.json()
-
-      // Map the API data to our integration format
-      if (data.integrations && data.integrations.length > 0) {
-        const connectedIntegrationIds = new Set(data.integrations.map((i: any) => i.integrationId))
-
-        setIntegrations((prev) =>
-          prev.map((int) => ({
-            ...int,
-            connected: connectedIntegrationIds.has(int.id),
-            enabled: connectedIntegrationIds.has(int.id),
-          })),
-        )
-      }
-    } catch (error) {
-      console.error("Error fetching integrations:", error)
-    }
-  }
-
-  // Fetch integrations on component mount
-  useEffect(() => {
-    fetchIntegrations()
-  }, [])
-
   const handleConnect = (integration: Integration) => {
     setSelectedIntegration(integration)
     setShowAccountSelection(true)
@@ -180,85 +157,48 @@ export function IntegrationsPanel() {
         prev.map((int) => (int.id === selectedIntegration.id ? { ...int, connected: true, enabled: true } : int)),
       )
 
-      // Here you would save the account selection to your backend
-      console.log(`Connected ${selectedIntegration.name} with account: ${accountId}, isNew: ${isNewAccount}`)
+      toast({
+        title: "Integration Connected",
+        description: `${selectedIntegration.name} has been successfully connected.`,
+        variant: "default",
+      })
     }
     setShowAccountSelection(false)
     setSelectedIntegration(null)
   }
 
   const handleToggle = async (integrationId: string, enabled: boolean) => {
-    try {
-      // Update the UI optimistically
-      setIntegrations((prev) => prev.map((int) => (int.id === integrationId ? { ...int, enabled } : int)))
+    // Update the UI optimistically
+    setIntegrations((prev) => prev.map((int) => (int.id === integrationId ? { ...int, enabled } : int)))
 
-      // Update the backend
-      const response = await fetch("/api/integrations", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ integrationId, enabled }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to update integration")
-      }
-
-      toast({
-        title: enabled ? "Integration Enabled" : "Integration Disabled",
-        description: `${integrations.find((i) => i.id === integrationId)?.name} has been ${enabled ? "enabled" : "disabled"}.`,
-        variant: "default",
-      })
-    } catch (error) {
-      console.error("Error updating integration:", error)
-
-      // Revert the UI change
-      setIntegrations((prev) => prev.map((int) => (int.id === integrationId ? { ...int, enabled: !enabled } : int)))
-
-      toast({
-        title: "Update Failed",
-        description: "Failed to update integration status. Please try again.",
-        variant: "destructive",
-      })
-    }
+    toast({
+      title: enabled ? "Integration Enabled" : "Integration Disabled",
+      description: `${integrations.find((i) => i.id === integrationId)?.name} has been ${enabled ? "enabled" : "disabled"}.`,
+      variant: "default",
+    })
   }
 
   const handleDisconnect = async (integrationId: string) => {
-    try {
-      // Update the UI optimistically
-      setIntegrations((prev) =>
-        prev.map((int) => (int.id === integrationId ? { ...int, connected: false, enabled: false } : int)),
-      )
-
-      // Update the backend
-      const response = await fetch(`/api/integrations?integrationId=${integrationId}`, {
-        method: "DELETE",
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to disconnect integration")
-      }
-
+    // For Google integrations, we can't really disconnect without signing out
+    if (integrationId === "google-calendar" || integrationId === "gmail") {
       toast({
-        title: "Integration Disconnected",
-        description: `${integrations.find((i) => i.id === integrationId)?.name} has been disconnected.`,
-        variant: "default",
-      })
-    } catch (error) {
-      console.error("Error disconnecting integration:", error)
-
-      // Revert the UI change
-      setIntegrations((prev) =>
-        prev.map((int) => (int.id === integrationId ? { ...int, connected: true, enabled: true } : int)),
-      )
-
-      toast({
-        title: "Disconnect Failed",
-        description: "Failed to disconnect integration. Please try again.",
+        title: "Cannot Disconnect",
+        description: "Google integrations are tied to your login session. Sign out to disconnect.",
         variant: "destructive",
       })
+      return
     }
+
+    // Update the UI optimistically
+    setIntegrations((prev) =>
+      prev.map((int) => (int.id === integrationId ? { ...int, connected: false, enabled: false } : int)),
+    )
+
+    toast({
+      title: "Integration Disconnected",
+      description: `${integrations.find((i) => i.id === integrationId)?.name} has been disconnected.`,
+      variant: "default",
+    })
   }
 
   return (
@@ -266,6 +206,9 @@ export function IntegrationsPanel() {
       <div>
         <h2 className="text-2xl font-bold">Integrations</h2>
         <p className="text-gray-600">Connect your favorite tools to enhance your AI assistant</p>
+        {session?.user?.email && (
+          <p className="text-sm text-gray-500 mt-1">Currently signed in as: {session.user.email}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

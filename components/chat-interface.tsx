@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Send, Calendar, Mail, Plus, Github } from "lucide-react"
+import { Send, Calendar, Mail, Plus } from "lucide-react"
 import { useSession } from "next-auth/react"
 import type { CalendarEvent, EmailData, DetectedEvent } from "@/lib/types"
 import { EventCard } from "./event-card"
 import { EmailCard } from "./email-card"
 import { DetectedEventCard } from "./detected-event-card"
-import { GitHubRepoCard, GitHubIssueCard } from "./github-card"
 import { DragonLogo } from "./dragon-logo"
 import { Badge } from "@/components/ui/badge"
 
@@ -35,6 +34,7 @@ export default function ChatInterface() {
     githubIssues: [],
     accountInfo: {},
   })
+  const [isLoadingContext, setIsLoadingContext] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
@@ -45,75 +45,87 @@ export default function ChatInterface() {
   })
 
   const fetchContextData = async () => {
+    if (!session?.accessToken) {
+      console.log("No access token available")
+      return
+    }
+
+    setIsLoadingContext(true)
     try {
-      const response = await fetch("/api/context")
-      if (response.ok) {
-        const data = await response.json()
+      // Fetch calendar and email data directly using the existing APIs
+      const [calendarRes, emailsRes, contextRes] = await Promise.all([
+        fetch("/api/calendar"),
+        fetch("/api/emails"),
+        fetch("/api/context"),
+      ])
 
-        // Process the account-specific data
-        const processedData: ContextData = {
-          events: [],
-          emails: [],
-          detectedEvents: [],
-          githubRepos: [],
-          githubIssues: [],
-          accountInfo: {},
-        }
-
-        // Extract data from each account-specific integration
-        Object.entries(data.data).forEach(([key, value]: [string, any]) => {
-          if (value.error) return
-
-          const [integrationId, accountEmail] = key.split("_")
-          processedData.accountInfo[key] = value.account
-
-          switch (integrationId) {
-            case "calendar":
-              processedData.events.push(...(value.data || []))
-              break
-            case "gmail":
-              processedData.emails.push(...(value.data || []))
-              break
-            case "github":
-              if (value.data?.repositories) {
-                processedData.githubRepos.push(...value.data.repositories)
-              }
-              if (value.data?.issues) {
-                processedData.githubIssues.push(...value.data.issues)
-              }
-              break
-          }
-        })
-
-        // Simple event detection
-        const detectedEvents: DetectedEvent[] = []
-        processedData.emails.forEach((email: EmailData) => {
-          const text = `${email.subject} ${email.snippet}`.toLowerCase()
-          if (text.includes("meeting") || text.includes("call") || text.includes("appointment")) {
-            detectedEvents.push({
-              title: email.subject,
-              date: email.date,
-              source: "email",
-              sourceId: email.id,
-              confidence: 0.7,
-              description: email.snippet,
-            })
-          }
-        })
-        processedData.detectedEvents = detectedEvents
-
-        setContextData(processedData)
+      const processedData: ContextData = {
+        events: [],
+        emails: [],
+        detectedEvents: [],
+        githubRepos: [],
+        githubIssues: [],
+        accountInfo: {},
       }
+
+      // Process calendar data
+      if (calendarRes.ok) {
+        const calendarData = await calendarRes.json()
+        processedData.events = calendarData.events || []
+        console.log("Loaded calendar events:", processedData.events.length)
+      } else {
+        console.error("Failed to fetch calendar:", await calendarRes.text())
+      }
+
+      // Process email data
+      if (emailsRes.ok) {
+        const emailsData = await emailsRes.json()
+        processedData.emails = emailsData.emails || []
+        console.log("Loaded emails:", processedData.emails.length)
+      } else {
+        console.error("Failed to fetch emails:", await emailsRes.text())
+      }
+
+      // Process context data for account info
+      if (contextRes.ok) {
+        const contextData = await contextRes.json()
+        if (contextData.accounts) {
+          contextData.accounts.forEach((account: any) => {
+            processedData.accountInfo[`${account.provider}_${account.email}`] = account
+          })
+        }
+      }
+
+      // Simple event detection from emails
+      const detectedEvents: DetectedEvent[] = []
+      processedData.emails.forEach((email: EmailData) => {
+        const text = `${email.subject} ${email.snippet}`.toLowerCase()
+        if (text.includes("meeting") || text.includes("call") || text.includes("appointment")) {
+          detectedEvents.push({
+            title: email.subject,
+            date: email.date,
+            source: "email",
+            sourceId: email.id,
+            confidence: 0.7,
+            description: email.snippet,
+          })
+        }
+      })
+      processedData.detectedEvents = detectedEvents
+
+      setContextData(processedData)
     } catch (error) {
       console.error("Error fetching context data:", error)
+    } finally {
+      setIsLoadingContext(false)
     }
   }
 
   useEffect(() => {
-    if (session) {
+    if (session?.accessToken) {
       fetchContextData()
     }
-  }, [session])
+  }, [session?.accessToken])
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -148,15 +160,15 @@ export default function ChatInterface() {
     }
   }
 
-  const getAccountBadge = (dataKey: string) => {
-    const accountInfo = contextData.accountInfo[dataKey]
-    if (!accountInfo) return null
-
-    return (
-      <Badge variant="outline" className="text-xs">
-        {accountInfo.email}
-      </Badge>
-    )
+  const getAccountBadge = (email?: string) => {
+    if (!email && session?.user?.email) {
+      return (
+        <Badge variant="outline" className="text-xs">
+          {session.user.email}
+        </Badge>
+      )
+    }
+    return null
   }
 
   return (
@@ -165,6 +177,13 @@ export default function ChatInterface() {
       <div className="w-80 bg-gray-50 border-r border-gray-200 p-4 overflow-y-auto">
         <h2 className="text-lg font-semibold mb-4">Today's Context</h2>
 
+        {isLoadingContext && (
+          <div className="text-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto mb-2"></div>
+            <p className="text-xs text-gray-600">Loading your data...</p>
+          </div>
+        )}
+
         {/* Upcoming Events */}
         <div className="mb-6">
           <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
@@ -172,18 +191,16 @@ export default function ChatInterface() {
             Upcoming Events ({contextData.events.length})
           </h3>
           <div className="space-y-2">
-            {contextData.events.slice(0, 3).map((event) => (
-              <div key={event.id}>
-                <EventCard event={event} compact />
-                {getAccountBadge(
-                  `calendar_${
-                    Object.keys(contextData.accountInfo)
-                      .find((k) => k.startsWith("calendar_"))
-                      ?.split("_")[1] || ""
-                  }`,
-                )}
-              </div>
-            ))}
+            {contextData.events.length === 0 && !isLoadingContext ? (
+              <p className="text-xs text-gray-500">No upcoming events</p>
+            ) : (
+              contextData.events.slice(0, 3).map((event) => (
+                <div key={event.id}>
+                  <EventCard event={event} compact />
+                  {getAccountBadge()}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -194,68 +211,18 @@ export default function ChatInterface() {
             Recent Emails ({contextData.emails.length})
           </h3>
           <div className="space-y-2">
-            {contextData.emails.slice(0, 3).map((email) => (
-              <div key={email.id}>
-                <EmailCard email={email} compact />
-                {getAccountBadge(
-                  `gmail_${
-                    Object.keys(contextData.accountInfo)
-                      .find((k) => k.startsWith("gmail_"))
-                      ?.split("_")[1] || ""
-                  }`,
-                )}
-              </div>
-            ))}
+            {contextData.emails.length === 0 && !isLoadingContext ? (
+              <p className="text-xs text-gray-500">No recent emails</p>
+            ) : (
+              contextData.emails.slice(0, 3).map((email) => (
+                <div key={email.id}>
+                  <EmailCard email={email} compact />
+                  {getAccountBadge()}
+                </div>
+              ))
+            )}
           </div>
         </div>
-
-        {/* GitHub Repositories */}
-        {contextData.githubRepos.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-              <Github className="h-4 w-4" />
-              Recent Repositories ({contextData.githubRepos.length})
-            </h3>
-            <div className="space-y-2">
-              {contextData.githubRepos.slice(0, 2).map((repo) => (
-                <div key={repo.id}>
-                  <GitHubRepoCard repo={repo} compact />
-                  {getAccountBadge(
-                    `github_${
-                      Object.keys(contextData.accountInfo)
-                        .find((k) => k.startsWith("github_"))
-                        ?.split("_")[1] || ""
-                    }`,
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* GitHub Issues */}
-        {contextData.githubIssues.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-              <Github className="h-4 w-4" />
-              Assigned Issues ({contextData.githubIssues.length})
-            </h3>
-            <div className="space-y-2">
-              {contextData.githubIssues.slice(0, 2).map((issue) => (
-                <div key={issue.id}>
-                  <GitHubIssueCard issue={issue} compact />
-                  {getAccountBadge(
-                    `github_${
-                      Object.keys(contextData.accountInfo)
-                        .find((k) => k.startsWith("github_"))
-                        ?.split("_")[1] || ""
-                    }`,
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Detected Events */}
         {contextData.detectedEvents.length > 0 && (
@@ -280,14 +247,12 @@ export default function ChatInterface() {
           <h1 className="text-xl font-semibold">dRAGon Assistant</h1>
           <p className="text-gray-600 text-sm">Ask me about your schedule, emails, or productivity tasks</p>
 
-          {/* Connected Accounts Info */}
-          {Object.keys(contextData.accountInfo).length > 0 && (
+          {/* Connected Account Info */}
+          {session?.user?.email && (
             <div className="flex gap-1 mt-2">
-              {Object.entries(contextData.accountInfo).map(([key, account]) => (
-                <Badge key={key} variant="outline" className="text-xs">
-                  {account.provider}: {account.email}
-                </Badge>
-              ))}
+              <Badge variant="outline" className="text-xs">
+                Google: {session.user.email}
+              </Badge>
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useSession, signIn } from "next-auth/react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -48,18 +48,33 @@ export function AccountSelectionModal({ isOpen, onClose, integration, onAccountS
   const loadConnectedAccounts = async () => {
     setIsLoading(true)
     try {
-      // Fetch connected accounts from the API
-      const response = await fetch(`/api/accounts?provider=${getProviderForIntegration(integration?.id || "")}`)
+      const provider = getProviderForIntegration(integration?.id || "")
 
-      if (!response.ok) {
-        throw new Error("Failed to load accounts")
+      // For Google integrations, show the current session account
+      if (provider === "google" && session?.user) {
+        const currentAccount: ConnectedAccount = {
+          id: "current_google",
+          provider: "google",
+          email: session.user.email || "",
+          name: session.user.name || "Google Account",
+          image: session.user.image || undefined,
+          isActive: true,
+          connectedAt: new Date().toISOString(),
+        }
+        setConnectedAccounts([currentAccount])
+      } else {
+        // For other providers, fetch from API
+        const response = await fetch(`/api/accounts?provider=${provider}`)
+
+        if (response.ok) {
+          const data = await response.json()
+          setConnectedAccounts(data.accounts || [])
+        } else {
+          setConnectedAccounts([])
+        }
       }
-
-      const data = await response.json()
-      setConnectedAccounts(data.accounts || [])
     } catch (error) {
       console.error("Error loading connected accounts:", error)
-      // Fallback to empty accounts list
       setConnectedAccounts([])
     } finally {
       setIsLoading(false)
@@ -78,12 +93,27 @@ export function AccountSelectionModal({ isOpen, onClose, integration, onAccountS
     onAccountSelected(accountId, false)
   }
 
-  const handleConnectNewAccount = () => {
+  const handleConnectNewAccount = async () => {
     const provider = getProviderForIntegration(integration?.id || "")
-    const integrationId = integration?.id || ""
 
-    // Redirect to the appropriate OAuth flow
-    initiateOAuthFlow(provider, integrationId)
+    if (provider === "google") {
+      // For Google, we need to trigger a new sign-in with account_select prompt
+      try {
+        // Close the modal first
+        onClose()
+
+        // Trigger Google sign-in with account selection
+        await signIn("google", {
+          callbackUrl: `/integrations?success=google_connected&integration=${integration?.id}`,
+          prompt: "select_account", // This forces Google to show account selection
+        })
+      } catch (error) {
+        console.error("Error initiating Google sign-in:", error)
+      }
+    } else {
+      // For other providers, use the OAuth flow
+      initiateOAuthFlow(provider, integration?.id || "")
+    }
   }
 
   const initiateOAuthFlow = (provider: string, integrationId: string) => {
@@ -96,10 +126,6 @@ export function AccountSelectionModal({ isOpen, onClose, integration, onAccountS
     switch (provider) {
       case "github":
         authUrl = `/api/auth/oauth/github`
-        break
-      case "google":
-        // For Google, we'll use a different endpoint for different scopes based on integration
-        authUrl = `/api/auth/oauth/google?integration=${integrationId}`
         break
       case "slack":
         authUrl = `/api/auth/oauth/slack`
@@ -193,7 +219,7 @@ export function AccountSelectionModal({ isOpen, onClose, integration, onAccountS
                             {account.isActive && (
                               <Badge variant="outline" className="text-xs">
                                 <CheckCircle className="h-3 w-3 mr-1" />
-                                Active
+                                Current
                               </Badge>
                             )}
                           </div>
@@ -207,7 +233,7 @@ export function AccountSelectionModal({ isOpen, onClose, integration, onAccountS
               {/* Connect New Account */}
               <div className="space-y-2">
                 {connectedAccounts.length > 0 && (
-                  <h4 className="text-sm font-medium text-gray-700">Or connect a new account</h4>
+                  <h4 className="text-sm font-medium text-gray-700">Or connect a different account</h4>
                 )}
                 <Card
                   className="cursor-pointer hover:bg-gray-50 transition-colors border-dashed border-2"
@@ -216,10 +242,14 @@ export function AccountSelectionModal({ isOpen, onClose, integration, onAccountS
                   <CardContent className="p-4 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <Plus className="h-4 w-4" />
-                      <span className="font-medium">Connect New {getProviderDisplayName(provider)} Account</span>
+                      <span className="font-medium">
+                        {provider === "google" ? "Switch" : "Connect"} {getProviderDisplayName(provider)} Account
+                      </span>
                     </div>
                     <p className="text-xs text-gray-600 mt-1">
-                      Sign in with a different {getProviderDisplayName(provider)} account
+                      {provider === "google"
+                        ? "Choose a different Google account"
+                        : `Sign in with a different ${getProviderDisplayName(provider)} account`}
                     </p>
                   </CardContent>
                 </Card>
