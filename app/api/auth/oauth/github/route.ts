@@ -15,15 +15,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/auth/signin", request.url))
     }
 
+    // Validate required environment variables
+    if (!GITHUB_CLIENT_ID) {
+      console.error("GITHUB_CLIENT_ID is not configured")
+      return NextResponse.redirect(new URL("/integrations?error=github_not_configured", request.url))
+    }
+
+    if (!process.env.NEXTAUTH_URL) {
+      console.error("NEXTAUTH_URL is not configured")
+      return NextResponse.redirect(new URL("/integrations?error=nextauth_url_missing", request.url))
+    }
+
     // Generate a random state for CSRF protection
     const state = Math.random().toString(36).substring(2, 15)
 
+    console.log("GitHub OAuth Configuration:")
+    console.log("Client ID:", GITHUB_CLIENT_ID)
+    console.log("Redirect URI:", GITHUB_REDIRECT_URI)
+    console.log("Scopes:", GITHUB_SCOPES.join(" "))
+
+    // Build the authorization URL
+    const authUrl = new URL("https://github.com/login/oauth/authorize")
+    authUrl.searchParams.set("client_id", GITHUB_CLIENT_ID)
+    authUrl.searchParams.set("redirect_uri", GITHUB_REDIRECT_URI)
+    authUrl.searchParams.set("scope", GITHUB_SCOPES.join(" "))
+    authUrl.searchParams.set("state", state)
+
     // Store state in cookies for verification in callback
-    const response = NextResponse.redirect(
-      `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(
-        GITHUB_REDIRECT_URI,
-      )}&scope=${encodeURIComponent(GITHUB_SCOPES.join(" "))}&state=${state}`,
-    )
+    const response = NextResponse.redirect(authUrl.toString())
 
     // Set state cookie
     response.cookies.set("github_oauth_state", state, {
