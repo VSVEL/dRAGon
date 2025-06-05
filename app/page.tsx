@@ -1,30 +1,29 @@
-"use client";
+"use client"
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import ChatInterface from "@/components/chat-interface";
-import { Button } from "@/components/ui/button";
-import { signOut } from "next-auth/react";
-import { LogOut, Settings } from "lucide-react";
-import { DragonLogo } from "@/components/dragon-logo";
-import Image from "next/image";
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
+import ChatInterface from "@/components/chat-interface"
+import { Button } from "@/components/ui/button"
+import { signOut } from "next-auth/react"
+import { LogOut, Settings, Github } from "lucide-react"
+import { DragonLogo } from "@/components/dragon-logo"
 
 export default function Home() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+  const { data: session, status } = useSession()
+  const router = useRouter()
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/auth/signin");
+      router.push("/auth/signin")
     }
 
     // Handle session errors
     if (session?.error === "RefreshAccessTokenError") {
       // Force sign in to resolve the token error
-      signOut({ callbackUrl: "/auth/signin" });
+      signOut({ callbackUrl: "/auth/signin" })
     }
-  }, [status, router, session]);
+  }, [status, router, session])
 
   if (status === "loading") {
     return (
@@ -34,11 +33,11 @@ export default function Home() {
           <p className="text-gray-600">Loading your assistant...</p>
         </div>
       </div>
-    );
+    )
   }
 
   if (!session) {
-    return null;
+    return null
   }
 
   return (
@@ -50,25 +49,20 @@ export default function Home() {
             <DragonLogo size="lg" className="text-indigo-600" />
           </div>
           <div className="text-sm text-gray-600">
-            Welcome back,{" "}
-            <span className="font-medium">{session.user?.name}</span>
+            Welcome back, <span className="font-medium">{session.user?.name}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/integrations")}
-          >
+          <Button variant="ghost" size="sm" onClick={() => router.push("/github")}>
+            <Github className="h-4 w-4 mr-2" />
+            GitHub Dashboard
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => router.push("/integrations")}>
             <Settings className="h-4 w-4 mr-2" />
             Integrations
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-          >
+          <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/auth/signin" })}>
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
           </Button>
@@ -80,5 +74,5 @@ export default function Home() {
         <ChatInterface />
       </div>
     </div>
-  );
+  )
 }

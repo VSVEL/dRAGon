@@ -1,30 +1,34 @@
 import type React from "react"
 import type { Metadata } from "next"
+import { Inter } from "next/font/google"
 import "./globals.css"
-import Link from "next/link"
-import { Github } from "./components/icons"
+import { SessionProvider } from "@/components/session-provider"
+import { DebugPanel } from "@/components/debug-panel"
+
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "v0 App",
-  description: "Created with v0",
+  title: "dRAGon - AI Productivity Assistant",
+  description: "Your context-aware AI productivity partner",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+  },
   generator: "v0.dev",
 }
 
+// This is a Client Component
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
     <html lang="en">
-      <body>
-        <nav>
-          <Link href="/github" className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100">
-            <Github className="h-4 w-4" />
-            GitHub Dashboard
-          </Link>
-        </nav>
-        {children}
+      <body className={inter.className}>
+        <SessionProvider>
+          {children}
+          <DebugPanel />
+        </SessionProvider>
       </body>
     </html>
   )
